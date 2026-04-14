@@ -1,4 +1,3 @@
-mod ioctl;
 use std::{
     error::Error,
     fs::OpenOptions,
@@ -13,20 +12,16 @@ use std::os::raw::{c_uint, c_ulong};
 
 const KVM_VERSION: i32 = 12;
 const KVMIO: c_uint = 0xAE;
-const KVM_GET_API_VERSION: c_ulong = ioctl::_IO(KVMIO, 0x00);
-const KVM_CREATE_VM: c_ulong = ioctl::_IO(KVMIO, 0x01);
-const KVM_GET_VCPU_MMAP_SIZE: c_ulong = ioctl::_IO(KVMIO, 0x04);
-const KVM_CREATE_VCPU: c_ulong = ioctl::_IO(KVMIO, 0x41);
-const KVM_SET_USER_MEMORY_REGION: c_ulong = ioctl::_IOW(
-    KVMIO,
-    0x46,
-    std::mem::size_of::<kvm_userspace_memory_region>() as u32,
-);
+const KVM_GET_API_VERSION: c_ulong = libc::_IO(KVMIO, 0x00);
+const KVM_CREATE_VM: c_ulong = libc::_IO(KVMIO, 0x01);
+const KVM_GET_VCPU_MMAP_SIZE: c_ulong = libc::_IO(KVMIO, 0x04);
+const KVM_CREATE_VCPU: c_ulong = libc::_IO(KVMIO, 0x41);
+const KVM_SET_USER_MEMORY_REGION: c_ulong = libc::_IOW::<kvm_userspace_memory_region>(KVMIO, 0x46);
 
-const KVM_RUN: c_ulong = ioctl::_IO(KVMIO, 0x80);
-const KVM_SET_REGS: c_ulong = ioctl::_IOW(KVMIO, 0x82, std::mem::size_of::<kvm_regs>() as u32);
-const KVM_GET_SREGS: c_ulong = ioctl::_IOR(KVMIO, 0x83, std::mem::size_of::<kvm_sregs>() as u32);
-const KVM_SET_SREGS: c_ulong = ioctl::_IOW(KVMIO, 0x84, std::mem::size_of::<kvm_sregs>() as u32);
+const KVM_RUN: c_ulong = libc::_IO(KVMIO, 0x80);
+const KVM_SET_REGS: c_ulong = libc::_IOW::<kvm_regs>(KVMIO, 0x82);
+const KVM_GET_SREGS: c_ulong = libc::_IOR::<kvm_sregs>(KVMIO, 0x83);
+const KVM_SET_SREGS: c_ulong = libc::_IOW::<kvm_sregs>(KVMIO, 0x84);
 
 const VM_MEMORY: u64 = 2 * 4096; // 2 blocks of 4KiB
 
