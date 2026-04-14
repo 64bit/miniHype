@@ -1,3 +1,3 @@
-# Mini Hypervisor
+# miniHype
 
 Uses KVM API to run a bare minimum x86 VM
