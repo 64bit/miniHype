@@ -101,46 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     //
-    // 4. Get the size of kvm_run
-    //
-
-    let vcpu_mmap_size = unsafe { libc::ioctl(kvm_fd, KVM_GET_VCPU_MMAP_SIZE, 0) };
-
-    if vcpu_mmap_size < 0 {
-        let last_os_error = std::io::Error::last_os_error();
-        eprintln!("error getting vcpu mmap size: {vcpu_mmap_size}");
-        return Err(last_os_error.into());
-    }
-
-    //
-    // 4.1 memory map the pointer to kvm_run data structure
-    //
-
-    let kvm_run_mmap = unsafe {
-        libc::mmap(
-            std::ptr::null_mut(),
-            vcpu_mmap_size as usize,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_SHARED,
-            vcpu_fd.as_raw_fd(),
-            0,
-        )
-    };
-
-    if kvm_run_mmap == libc::MAP_FAILED {
-        let last_os_error = std::io::Error::last_os_error();
-        eprintln!("kvm_run mmap failed");
-        return Err(last_os_error.into());
-    }
-
-    // take ownership, so on drop munmap is called
-    let kvm_run_mmap = Mmap {
-        ptr: kvm_run_mmap,
-        len: vcpu_mmap_size as usize,
-    };
-
-    //
-    // 5. Create memory for guest
+    // 4. Create memory for guest
     //
 
     let vm_memory_mmap = unsafe {
@@ -167,7 +128,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     //
-    // 6. Copy code to guest's physical memory - that guest will execute
+    // 5. Copy code to guest's physical memory - that guest will execute
     //
 
     unsafe {
@@ -175,12 +136,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let vm_memory_addr = vm_memory_mmap.ptr as u64;
-
-    println!("vcpu mmap size: {vcpu_mmap_size} bytes");
     println!("vm_memory_addr: 0x{vm_memory_addr:0x}");
 
     //
-    // 7. Setup guest's physical memory
+    // 6. Setup guest's physical memory
     //
     let userspace_memory_region = kvm_userspace_memory_region {
         slot: 0,
@@ -205,7 +164,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     //
-    // 8. Setup regular x86 cpu registers.
+    // 7.1 Setup regular x86 cpu registers.
     //   Set instruction pointer to start execution at 2nd' block of size 4096, because that's where we copied code
     //
 
@@ -224,7 +183,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     //
-    // 9. Read default x86 special registers, and update them
+    // 7.2 Read default x86 special registers, and update them
     //
 
     let mut k_sregs = kvm_sregs::default();
@@ -248,7 +207,48 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     //
-    // 10. Run VM until it executes hlt instruction in CODE
+    // 8.1. Get the size of kvm_run
+    //
+
+    let vcpu_mmap_size = unsafe { libc::ioctl(kvm_fd, KVM_GET_VCPU_MMAP_SIZE, 0) };
+
+    if vcpu_mmap_size < 0 {
+        let last_os_error = std::io::Error::last_os_error();
+        eprintln!("error getting vcpu mmap size: {vcpu_mmap_size}");
+        return Err(last_os_error.into());
+    }
+
+    println!("vcpu mmap size: {vcpu_mmap_size} bytes");
+
+    //
+    // 8.2 memory map the pointer to kvm_run data structure
+    //
+
+    let kvm_run_mmap = unsafe {
+        libc::mmap(
+            std::ptr::null_mut(),
+            vcpu_mmap_size as usize,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_SHARED,
+            vcpu_fd.as_raw_fd(),
+            0,
+        )
+    };
+
+    if kvm_run_mmap == libc::MAP_FAILED {
+        let last_os_error = std::io::Error::last_os_error();
+        eprintln!("kvm_run mmap failed");
+        return Err(last_os_error.into());
+    }
+
+    // take ownership, so on drop munmap is called
+    let kvm_run_mmap = Mmap {
+        ptr: kvm_run_mmap,
+        len: vcpu_mmap_size as usize,
+    };
+
+    //
+    // 9. Run VM until it executes hlt instruction in CODE
     //
     loop {
         let ret = unsafe { libc::ioctl(vcpu_fd.as_raw_fd(), KVM_RUN, 0) };
