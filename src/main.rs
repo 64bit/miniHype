@@ -164,7 +164,50 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     //
-    // 7. Get the size of kvm_run
+    // 7.1 Setup regular x86 cpu registers.
+    //   Set instruction pointer to start execution at 2nd' block of size 4096, because that's where we copied code
+    //
+
+    let k_regs = kvm_regs {
+        rip: 4096,
+        rflags: 0x2,
+        ..Default::default()
+    };
+
+    let ret = unsafe { libc::ioctl(vcpu_fd.as_raw_fd(), KVM_SET_REGS, &k_regs) };
+
+    if ret != 0 {
+        let last_os_error = std::io::Error::last_os_error();
+        eprintln!("error setting kvm_regs");
+        return Err(last_os_error.into());
+    }
+
+    //
+    // 7.2 Read default x86 special registers, and update them
+    //
+
+    let mut k_sregs = kvm_sregs::default();
+    let ret = unsafe { libc::ioctl(vcpu_fd.as_raw_fd(), KVM_GET_SREGS, &k_sregs) };
+
+    if ret != 0 {
+        let last_os_error = std::io::Error::last_os_error();
+        eprintln!("error getting kvm_sregs");
+        return Err(last_os_error.into());
+    }
+
+    k_sregs.cs.base = 0;
+    k_sregs.cs.selector = 0;
+
+    let ret = unsafe { libc::ioctl(vcpu_fd.as_raw_fd(), KVM_SET_SREGS, &k_sregs) };
+
+    if ret != 0 {
+        let last_os_error = std::io::Error::last_os_error();
+        eprintln!("error setting kvm_sregs");
+        return Err(last_os_error.into());
+    }
+
+    //
+    // 8.1. Get the size of kvm_run
     //
 
     let vcpu_mmap_size = unsafe { libc::ioctl(kvm_fd, KVM_GET_VCPU_MMAP_SIZE, 0) };
@@ -178,7 +221,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("vcpu mmap size: {vcpu_mmap_size} bytes");
 
     //
-    // 7.1 memory map the pointer to kvm_run data structure
+    // 8.2 memory map the pointer to kvm_run data structure
     //
 
     let kvm_run_mmap = unsafe {
@@ -205,50 +248,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     //
-    // 8. Setup regular x86 cpu registers.
-    //   Set instruction pointer to start execution at 2nd' block of size 4096, because that's where we copied code
-    //
-
-    let k_regs = kvm_regs {
-        rip: 4096,
-        rflags: 0x2,
-        ..Default::default()
-    };
-
-    let ret = unsafe { libc::ioctl(vcpu_fd.as_raw_fd(), KVM_SET_REGS, &k_regs) };
-
-    if ret != 0 {
-        let last_os_error = std::io::Error::last_os_error();
-        eprintln!("error setting kvm_regs");
-        return Err(last_os_error.into());
-    }
-
-    //
-    // 9. Read default x86 special registers, and update them
-    //
-
-    let mut k_sregs = kvm_sregs::default();
-    let ret = unsafe { libc::ioctl(vcpu_fd.as_raw_fd(), KVM_GET_SREGS, &k_sregs) };
-
-    if ret != 0 {
-        let last_os_error = std::io::Error::last_os_error();
-        eprintln!("error getting kvm_sregs");
-        return Err(last_os_error.into());
-    }
-
-    k_sregs.cs.base = 0;
-    k_sregs.cs.selector = 0;
-
-    let ret = unsafe { libc::ioctl(vcpu_fd.as_raw_fd(), KVM_SET_SREGS, &k_sregs) };
-
-    if ret != 0 {
-        let last_os_error = std::io::Error::last_os_error();
-        eprintln!("error setting kvm_sregs");
-        return Err(last_os_error.into());
-    }
-
-    //
-    // 10. Run VM until it executes hlt instruction in CODE
+    // 9. Run VM until it executes hlt instruction in CODE
     //
     loop {
         let ret = unsafe { libc::ioctl(vcpu_fd.as_raw_fd(), KVM_RUN, 0) };
