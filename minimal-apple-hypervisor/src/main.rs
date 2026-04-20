@@ -20,6 +20,7 @@ mod bindings {
 }
 
 const VM_MEMORY_SIZE: usize = 2 * 16384; // 2 blocks of 16KiB
+const CODE: [u8; 4] = [0xD5, 0x03, 0x20, 0x7F]; // WFI instruction
 
 struct Mmap {
     pub addr: *mut std::os::raw::c_void,
@@ -116,6 +117,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         VM_MEMORY_SIZE,
         (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
     ))?;
+
+    unsafe { std::ptr::copy_nonoverlapping(&CODE as *const u8, vm_mmap.addr as *mut u8, 4); }
 
     let mut vcpu_exit = std::ptr::null_mut();
     let mut id = 0;
