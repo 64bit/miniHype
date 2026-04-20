@@ -10,9 +10,9 @@ use std::fmt::Display;
 
 use crate::bindings::{
     HV_BAD_ARGUMENT, HV_BUSY, HV_ERROR, HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE,
-    HV_NO_DEVICE, HV_NO_RESOURCES, HV_SUCCESS, HV_UNSUPPORTED, hv_vcpu_config_create,
-    hv_vcpu_create, hv_vcpu_exit_t, hv_vcpu_run, hv_vm_config_create, hv_vm_create, hv_vm_map,
-    os_release,
+    HV_NO_DEVICE, HV_NO_RESOURCES, HV_SUCCESS, HV_UNSUPPORTED, hv_reg_t_HV_REG_PC,
+    hv_vcpu_config_create, hv_vcpu_create, hv_vcpu_exit_t, hv_vcpu_run, hv_vcpu_set_reg,
+    hv_vm_config_create, hv_vm_create, hv_vm_destroy, hv_vm_map, hv_vm_unmap, os_release,
 };
 
 mod bindings {
@@ -117,16 +117,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
     ))?;
 
+    let mut vcpu_exit = std::ptr::null_mut();
+    let mut id = 0;
     let vcpu = hv_call!(hv_vcpu_create(
-        &mut 0,
-        &mut std::ptr::null_mut(),
+        &mut id,
+        &mut vcpu_exit,
         std::ptr::null_mut()
     ))?;
 
+    let set_reg = hv_call!(hv_vcpu_set_reg(id, hv_reg_t_HV_REG_PC, 0))?;
+
     loop {
-        let run = hv_call!(hv_vcpu_run(vcpu as u64))?;
+        let run = hv_call!(hv_vcpu_run(id))?;
         println!("exit from run: {run}");
     }
+
+    let vm_unmap = hv_call!(hv_vm_unmap(0, VM_MEMORY_SIZE))?;
+
+    let vm_destroy = hv_call!(hv_vm_destroy())?;
 
     Ok(())
 }
