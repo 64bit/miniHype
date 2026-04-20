@@ -9,10 +9,7 @@ use std::error::Error;
 use std::fmt::Display;
 
 use crate::bindings::{
-    HV_BAD_ARGUMENT, HV_BUSY, HV_ERROR, HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE,
-    HV_NO_DEVICE, HV_NO_RESOURCES, HV_SUCCESS, HV_UNSUPPORTED, hv_reg_t_HV_REG_PC,
-    hv_vcpu_config_create, hv_vcpu_create, hv_vcpu_exit_t, hv_vcpu_run, hv_vcpu_set_reg,
-    hv_vm_config_create, hv_vm_create, hv_vm_destroy, hv_vm_map, hv_vm_unmap, os_release,
+    HV_BAD_ARGUMENT, HV_BUSY, HV_ERROR, HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE, HV_NO_DEVICE, HV_NO_RESOURCES, HV_SUCCESS, HV_UNSUPPORTED, hv_reg_t_HV_REG_CPSR, hv_reg_t_HV_REG_PC, hv_sys_reg_t_HV_SYS_REG_HCR_EL2, hv_vcpu_config_create, hv_vcpu_create, hv_vcpu_destroy, hv_vcpu_exit_t, hv_vcpu_run, hv_vcpu_set_reg, hv_vcpu_set_sys_reg, hv_vm_config_create, hv_vm_create, hv_vm_destroy, hv_vm_map, hv_vm_unmap, os_release
 };
 
 mod bindings {
@@ -20,7 +17,7 @@ mod bindings {
 }
 
 const VM_MEMORY_SIZE: usize = 2 * 16384; // 2 blocks of 16KiB
-const CODE: [u8; 4] = [0xD5, 0x03, 0x20, 0x7F]; // WFI instruction
+const CODE: [u8; 4] = [0x7F, 0x20, 0x03, 0xD5]; // WFI instruction (little-endian)
 
 struct Mmap {
     pub addr: *mut std::os::raw::c_void,
@@ -130,13 +127,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let set_reg = hv_call!(hv_vcpu_set_reg(id, hv_reg_t_HV_REG_PC, 0))?;
 
+    // Set CPSR to EL1h with DAIF masked (all exceptions masked)
+    hv_call!(hv_vcpu_set_reg(id, hv_reg_t_HV_REG_CPSR, 0x3C4))?;
+
     loop {
-        let run = hv_call!(hv_vcpu_run(id))?;
-        println!("exit from run: {run}");
+        hv_call!(hv_vcpu_run(id))?;
+        let exit = unsafe { &*vcpu_exit };
+        println!("exit reason: {}", exit.reason);
+        println!("  syndrome: {:#x}", exit.exception.syndrome);
+        break;
     }
 
+    let vcpu_destroy = hv_call!(hv_vcpu_destroy(id))?;
     let vm_unmap = hv_call!(hv_vm_unmap(0, VM_MEMORY_SIZE))?;
-
     let vm_destroy = hv_call!(hv_vm_destroy())?;
 
     Ok(())
