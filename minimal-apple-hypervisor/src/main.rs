@@ -17,18 +17,39 @@ use crate::bindings::{
     os_release,
 };
 
+use std::arch::global_asm;
+
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
 const VM_MEMORY_SIZE: usize = 2 * 16384; // 2 blocks of 16KiB
 
-// little endian bytes
-const CODE: &[u8] = &[
-    0x40, 0x08, 0x80, 0xd2, // mov x0, #0x42 // move a value to a general purpose register x0
-    // so we can see it after exit.
-    0x02, 0x00, 0x00, 0xd4, // hvc #0        // hypervisor call - will cause exit
-];
+global_asm!(
+    r#"
+    .global _guest_code_start
+    .global _guest_code_end
+    .align 4
+_guest_code_start:
+    mov x0, #0x41   // Move a value in general purpose register, so we can see it after vcpu exit.
+    hvc #0          // Hypervisor call - will cause exit
+_guest_code_end:
+    "#
+);
+
+unsafe extern "C" {
+    static guest_code_start: u8;
+    static guest_code_end: u8;
+}
+
+fn guest_code() -> &'static [u8] {
+    unsafe {
+        let start = &guest_code_start as *const u8;
+        let end = &guest_code_end as *const u8;
+        let len = end.offset_from(start) as usize;
+        std::slice::from_raw_parts(start, len)
+    }
+}
 
 struct Mmap {
     pub addr: *mut std::os::raw::c_void,
@@ -127,7 +148,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     ))?;
 
     unsafe {
-        std::ptr::copy_nonoverlapping(CODE.as_ptr(), vm_mmap.addr as *mut u8, CODE.len());
+        let code = guest_code();
+        std::ptr::copy_nonoverlapping(code.as_ptr(), vm_mmap.addr as *mut u8, code.len());
     }
 
     let mut vcpu_exit = std::ptr::null_mut();
