@@ -9,7 +9,12 @@ use std::error::Error;
 use std::fmt::Display;
 
 use crate::bindings::{
-    HV_BAD_ARGUMENT, HV_BUSY, HV_ERROR, HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE, HV_NO_DEVICE, HV_NO_RESOURCES, HV_SUCCESS, HV_UNSUPPORTED, hv_reg_t_HV_REG_CPSR, hv_reg_t_HV_REG_PC, hv_reg_t_HV_REG_X0, hv_sys_reg_t_HV_SYS_REG_HCR_EL2, hv_vcpu_config_create, hv_vcpu_create, hv_vcpu_destroy, hv_vcpu_exit_t, hv_vcpu_get_reg, hv_vcpu_run, hv_vcpu_set_reg, hv_vcpu_set_sys_reg, hv_vm_config_create, hv_vm_create, hv_vm_destroy, hv_vm_map, hv_vm_unmap, os_release
+    HV_BAD_ARGUMENT, HV_BUSY, HV_ERROR, HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE,
+    HV_NO_DEVICE, HV_NO_RESOURCES, HV_SUCCESS, HV_UNSUPPORTED, hv_reg_t_HV_REG_CPSR,
+    hv_reg_t_HV_REG_PC, hv_reg_t_HV_REG_X0, hv_sys_reg_t_HV_SYS_REG_HCR_EL2, hv_vcpu_config_create,
+    hv_vcpu_create, hv_vcpu_destroy, hv_vcpu_exit_t, hv_vcpu_get_reg, hv_vcpu_run, hv_vcpu_set_reg,
+    hv_vcpu_set_sys_reg, hv_vm_config_create, hv_vm_create, hv_vm_destroy, hv_vm_map, hv_vm_unmap,
+    os_release,
 };
 
 mod bindings {
@@ -21,7 +26,7 @@ const VM_MEMORY_SIZE: usize = 2 * 16384; // 2 blocks of 16KiB
 // little endian bytes
 const CODE: &[u8] = &[
     0x40, 0x08, 0x80, 0xd2, // mov x0, #0x42 // move a value to a general purpose register x0
-                                             // so we can see it after exit.
+    // so we can see it after exit.
     0x02, 0x00, 0x00, 0xd4, // hvc #0        // hypervisor call - will cause exit
 ];
 
@@ -121,7 +126,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
     ))?;
 
-    unsafe { std::ptr::copy_nonoverlapping(CODE.as_ptr(), vm_mmap.addr as *mut u8, CODE.len()); }
+    unsafe {
+        std::ptr::copy_nonoverlapping(CODE.as_ptr(), vm_mmap.addr as *mut u8, CODE.len());
+    }
 
     let mut vcpu_exit = std::ptr::null_mut();
     let mut id = 0;
