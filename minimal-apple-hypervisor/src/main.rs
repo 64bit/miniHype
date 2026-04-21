@@ -23,8 +23,10 @@ mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-const VM_MEMORY_SIZE: usize = 2 * 16384; // 2 blocks of 16KiB
+/// 2 blocks/pages of 16KiB - on Apple Silicon default page size is 16KiB
+const VM_MEMORY_SIZE: usize = 2 * 16384;
 
+/// Guest Code
 global_asm!(
     r#"
     .global _guest_code_start
@@ -136,8 +138,14 @@ macro_rules! hv_call {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    /// Implements Example VM Lifecycle
+    /// https://developer.apple.com/documentation/hypervisor#Example-VM-Life-Cycle
+
+    /// 1. Create a VM
     let vm = hv_call!(hv_vm_create(std::ptr::null_mut()))?;
 
+    /// 2. Create and setup VM memory.
+    /// Map a region in VMMs virtual address space to guest plysical address space
     let vm_mmap = Mmap::new(VM_MEMORY_SIZE)?;
 
     let vm_map = hv_call!(hv_vm_map(
@@ -147,11 +155,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
     ))?;
 
+    /// 3. Copy Guest Code
     unsafe {
         let code = guest_code();
         std::ptr::copy_nonoverlapping(code.as_ptr(), vm_mmap.addr as *mut u8, code.len());
     }
 
+    /// 4. Create a virtual CPU
     let mut vcpu_exit = std::ptr::null_mut();
     let mut id = 0;
     let vcpu = hv_call!(hv_vcpu_create(
@@ -160,6 +170,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::ptr::null_mut()
     ))?;
 
+    /// 5. Setup CPU registers
     let set_reg = hv_call!(hv_vcpu_set_reg(id, hv_reg_t_HV_REG_PC, 0))?;
 
     // Set Program State Register to basically disable all interrupts.
@@ -171,9 +182,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     // bit 9 (D) = 1 → mask debug
     hv_call!(hv_vcpu_set_reg(id, hv_reg_t_HV_REG_CPSR, 0x3c5))?;
 
+    /// 6. Run the vCPU
     loop {
         hv_call!(hv_vcpu_run(id))?;
         let exit = unsafe { &*vcpu_exit };
+
+        /// 7. Handle vCPU exit event
         println!("exit reason: {}", exit.reason);
         println!("  physical_address: {:#x}", exit.exception.physical_address);
         println!("  virtual_address: {:#x}", exit.exception.virtual_address);
@@ -195,6 +209,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         break;
     }
 
+    /// 8. Cleanup: destroy vcpu, unmap memory region, destroy vm
     let vcpu_destroy = hv_call!(hv_vcpu_destroy(id))?;
     let vm_unmap = hv_call!(hv_vm_unmap(0, VM_MEMORY_SIZE))?;
     let vm_destroy = hv_call!(hv_vm_destroy())?;
