@@ -134,6 +134,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         hv_call!(hv_vcpu_run(id))?;
         let exit = unsafe { &*vcpu_exit };
         println!("exit reason: {}", exit.reason);
+        println!("  physical_address: {:0x}", exit.exception.physical_address);
+        println!("  virtual_address: {:0x}", exit.exception.virtual_address);
         println!("  syndrome: {:#x}", exit.exception.syndrome);
         break;
     }
