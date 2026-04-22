@@ -63,7 +63,7 @@ impl Mmap {
         let addr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
-                VM_MEMORY_SIZE,
+                len,
                 libc::PROT_READ | libc::PROT_WRITE,
                 libc::MAP_ANON | libc::MAP_PRIVATE,
                 -1,
